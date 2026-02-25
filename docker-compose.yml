@@ -1,0 +1,33 @@
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: infisical
+      POSTGRES_PASSWORD: password123
+      POSTGRES_DB: infisical
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    restart: always
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+
+  backend:
+    image: infisical/infisical:latest
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+      - redis
+    environment:
+      - NODE_ENV=production
+      - SITE_URL=http://localhost:8080
+      - ENCRYPTION_KEY=1090ece97a211a3e48d021b7400d26d3
+      - AUTH_SECRET=8HabAiV86J74+1cvnlZRQa9dLbnB5QCy1DXm4jbFpfA=
+      - DB_CONNECTION_URI=postgresql://infisical:password123@db:5432/infisical
+      - REDIS_URL=redis://redis:6379
+    restart: always
+
+volumes:
+  db_data:
