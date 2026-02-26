@@ -2,32 +2,57 @@ services:
   db:
     image: postgres:15-alpine
     environment:
-      POSTGRES_USER: infisical
-      POSTGRES_PASSWORD: password123
-      POSTGRES_DB: infisical
+      POSTGRES_USER: ${POSTGRES_USER:-infisical}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-infisical}
     volumes:
       - db_data:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: always
 
   redis:
     image: redis:7-alpine
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: always
 
   backend:
-    image: infisical/infisical:latest
+    image: infisical/infisical:v0.158.5
     ports:
       - "8080:8080"
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       - NODE_ENV=production
-      - SITE_URL=http://localhost:8080
-      - ENCRYPTION_KEY=1090ece97a211a3e48d021b7400d26d3
-      - AUTH_SECRET=8HabAiV86J74+1cvnlZRQa9dLbnB5QCy1DXm4jbFpfA=
-      - DB_CONNECTION_URI=postgresql://infisical:password123@db:5432/infisical
+      - SITE_URL=${SITE_URL:-http://localhost:8080}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - AUTH_SECRET=${AUTH_SECRET}
+      - DB_CONNECTION_URI=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       - REDIS_URL=redis://redis:6379
+    networks:
+      - internal
+      - public
     restart: always
+
+networks:
+  internal:
+    driver: bridge
+  public:
+    driver: bridge
 
 volumes:
   db_data:
