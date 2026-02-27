@@ -1,0 +1,59 @@
+name: Simple Database Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-database:
+    runs-on: ubuntu-latest
+    env:
+      POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+
+      - name: Start PostgreSQL
+        run: |
+          docker run -d \
+            --name test_postgres \
+            -e POSTGRES_USER=${POSTGRES_USER} \
+            -e POSTGRES_PASSWORD=${POSTGRES_PASSWORD} \
+            -e POSTGRES_DB=${POSTGRES_DB} \
+            -p 5432:5432 \
+            postgres:15-alpine
+
+          echo "Waiting for PostgreSQL to be ready..."
+          for i in {1..10}; do
+            docker exec test_postgres pg_isready -U $POSTGRES_USER -d $POSTGRES_DB && break
+            echo "Waiting 2s..."
+            sleep 2
+          done
+
+      - name: Install pg package
+        run: npm install pg
+
+      - name: Test DB Connection
+        run: |
+          node -e "
+          import pg from 'pg';
+          const pool = new pg.Pool({
+            user: process.env.POSTGRES_USER,
+            host: 'localhost',
+            database: process.env.POSTGRES_DB,
+            password: process.env.POSTGRES_PASSWORD,
+            port: 5432
+          });
+          pool.query('SELECT NOW()', (err, res) => {
+            if(err) { console.error('❌ DB Connection Error:', err); process.exit(1); }
+            console.log('✅ DB Connected:', res.rows[0]);
+            pool.end();
+          });
+          "
